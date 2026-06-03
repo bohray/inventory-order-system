@@ -246,13 +246,14 @@ All enforced in the backend (and mirrored in DB constraints where possible):
 
 1. Push this repo to GitHub.
 2. On [Render](https://render.com): **New → Blueprint**, point it at the repo. `render.yaml`
-   provisions a free PostgreSQL database and a Docker web service from `backend/`.
+   provisions a free PostgreSQL database and a Docker web service from `backend/`, and
+   **wires `DATABASE_URL` automatically** from the database.
    *(Or do it manually: **New → Web Service**, runtime **Docker**, root directory `backend`.)*
-3. Set environment variables on the backend service:
-   - `DATABASE_URL` = the database's **Internal Database URL**, with the scheme changed from
-     `postgresql://` to **`postgresql+psycopg://`** (the driver this app uses).
+3. Set the one remaining environment variable on the backend service:
    - `CORS_ORIGINS` = your Vercel frontend URL (e.g. `https://your-app.vercel.app`).
    - `LOW_STOCK_THRESHOLD` = `10` (optional).
+   > No need to touch `DATABASE_URL` — the backend normalizes Render's `postgresql://`
+   > URL to the `postgresql+psycopg://` driver scheme at startup automatically.
 4. Deploy. Your API is at `https://<service>.onrender.com` (docs at `/docs`).
 
 > Render's free tier sleeps after inactivity; the first request after idle may take ~30s.

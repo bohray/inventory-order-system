@@ -1,13 +1,10 @@
 # Render Blueprint: provisions a free Postgres database and deploys the
-# backend Docker image. Render injects DATABASE_URL from the database.
+# backend Docker image.
 #
-# NOTE: Render's DATABASE_URL uses the "postgresql://" scheme. The backend's
-# SQLAlchemy URL needs "postgresql+psycopg://". Either:
-#   (a) set DATABASE_URL manually in the dashboard with the +psycopg driver, or
-#   (b) rely on the fromDatabase value below and adjust the scheme.
-# The simplest path is to copy the database's "Internal Database URL" from the
-# Render dashboard and paste it as DATABASE_URL with "+psycopg" added after
-# "postgresql".
+# DATABASE_URL is injected automatically from the database below. Render's
+# connectionString uses the "postgresql://" scheme; the backend normalizes it
+# to "postgresql+psycopg://" at startup (see app/config.py), so no manual edit
+# is needed. You only have to set CORS_ORIGINS to your Vercel frontend URL.
 
 databases:
   - name: inventory-db
@@ -25,8 +22,10 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        sync: false # set manually with the postgresql+psycopg:// scheme
+        fromDatabase:
+          name: inventory-db
+          property: connectionString
       - key: CORS_ORIGINS
-        sync: false # set to your Vercel frontend URL
+        sync: false # set to your Vercel frontend URL after deploying it
       - key: LOW_STOCK_THRESHOLD
         value: "10"
