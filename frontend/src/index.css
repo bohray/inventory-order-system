@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+/* Tailwind v4 CSS-first theme. Custom tokens are exposed as utility classes
+   (e.g. --color-brand-600 -> bg-brand-600, text-brand-600). */
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-800 antialiased;
+    font-family: var(--font-sans);
+  }
+}
+
+/* Reusable building blocks composed from utilities. Components still use
+   utilities directly; these just keep the most-repeated patterns DRY. */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2
+           text-sm font-semibold transition-colors cursor-pointer
+           disabled:opacity-55 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply bg-brand-600 text-white hover:bg-brand-700;
+  }
+  .btn-ghost {
+    @apply bg-slate-100 text-slate-700 hover:bg-slate-200;
+  }
+  .btn-danger {
+    @apply bg-red-50 text-red-600 hover:bg-red-100;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-[13px];
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm
+           outline-none transition
+           focus:border-brand-500 focus:ring-2 focus:ring-brand-500/25;
+  }
+
+  .label {
+    @apply mb-1.5 block text-[13px] font-semibold text-slate-500;
+  }
+
+  .card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+}
