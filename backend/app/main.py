@@ -14,9 +14,9 @@ settings = get_settings()
 def _ensure_schema() -> None:
     """Add columns introduced after a table was first created.
 
-    A real product would use Alembic; this keeps the assessment zero-config
-    while still upgrading an existing database (where create_all is a no-op
-    for already-existing tables) when a new column like orders.status lands.
+    A larger app would use Alembic; this keeps setup zero-config while still
+    upgrading an existing database (where create_all is a no-op for
+    already-existing tables) when a new column like orders.status lands.
     """
     inspector = inspect(engine)
     if "orders" not in inspector.get_table_names():
@@ -32,8 +32,8 @@ def _ensure_schema() -> None:
             )
 
 
-# Create tables on startup. For a real product this would be Alembic
-# migrations; for this assessment create_all keeps setup zero-config.
+# Create tables on startup. A larger app would use Alembic migrations;
+# here create_all keeps setup zero-config.
 Base.metadata.create_all(bind=engine)
 _ensure_schema()
 

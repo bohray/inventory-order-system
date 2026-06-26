@@ -12,23 +12,36 @@ A full-stack, containerized application for managing **products, customers, orde
 
 ## Table of Contents
 
-1. [Features](#features)
-2. [Architecture](#architecture)
-3. [Project Structure](#project-structure)
-4. [Run Locally with Docker Compose](#run-locally-with-docker-compose-recommended)
-5. [Run Without Docker](#run-without-docker-dev-mode)
-6. [API Reference](#api-reference)
-7. [Business Rules](#business-rules)
-8. [Deployment](#deployment)
-9. [Submission Checklist](#submission-checklist)
+1. [Live Demo](#live-demo)
+2. [Features](#features)
+3. [Architecture](#architecture)
+4. [Project Structure](#project-structure)
+5. [Run Locally with Docker Compose](#run-locally-with-docker-compose-recommended)
+6. [Run Without Docker](#run-without-docker-dev-mode)
+7. [API Reference](#api-reference)
+8. [Business Rules](#business-rules)
+
+---
+
+## Live Demo
+
+- **App:** https://inventory-order-system-rouge.vercel.app
+- **API (Swagger docs):** https://inventory-backend-4q5v.onrender.com/docs
+
+> Frontend on Vercel; Dockerized FastAPI backend + managed PostgreSQL on Render. The backend's
+> free tier sleeps when idle, so the first request after a while can take ~30s to wake.
 
 ---
 
 ## Features
 
 **Products** — create, list, view, update, delete. Unique SKU, non-negative price/stock.
+Live **search** (by name/SKU), a **category filter** (derived from the SKU prefix), and
+sortable **Name / Price / Stock** columns — all composed with pagination.
 **Customers** — create, list, view, delete. Unique email.
-**Orders** — create (multi-product), list, view details, cancel. Stock-aware with auto totals.
+**Orders** — create (multi-product), list, view details, and a **status workflow**
+(Pending → Processing → Shipped → Delivered, or Cancelled). Cancelling keeps the order on
+record and restocks. Stock-aware with backend-computed totals; newest orders shown first.
 **Dashboard** — totals for products / customers / orders plus a low-stock list.
 
 The UI is responsive (desktop + mobile), validates forms client-side, and shows clear
@@ -54,12 +67,13 @@ success/error banners. The backend re-validates everything and returns proper HT
 inventory-order-system/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py          # FastAPI app, CORS, router registration, table creation
+│   │   ├── main.py          # FastAPI app, CORS, routers, table creation + lightweight migration
 │   │   ├── config.py        # env-driven settings (Pydantic)
 │   │   ├── database.py      # SQLAlchemy engine/session + get_db dependency
-│   │   ├── models.py        # Product, Customer, Order, OrderItem
+│   │   ├── models.py        # Product, Customer, Order (status), OrderItem
 │   │   ├── schemas.py       # Pydantic request/response models (validation)
 │   │   └── routers/         # products, customers, orders, dashboard
+│   ├── seed_demo.py         # populate realistic demo data via the HTTP API
 │   ├── requirements.txt
 │   ├── Dockerfile           # python:3.12-slim, non-root user
 │   ├── .dockerignore
@@ -148,6 +162,20 @@ cp .env.example .env        # VITE_API_BASE_URL defaults to http://localhost:800
 npm run dev                 # http://localhost:5173
 ```
 
+### Seed demo data (optional)
+
+`backend/seed_demo.py` populates a running API with a realistic catalogue, customers, and a
+spread of orders (with statuses and a backdated history) — handy for demos and screenshots.
+It talks plain HTTP, so it works against a local **or** deployed backend and needs no DB access:
+
+```bash
+cd backend
+python seed_demo.py                                      # local backend on :8000
+python seed_demo.py --base-url https://<host> --reset    # wipe + reseed a deployed backend
+```
+
+It refuses to run if data already exists unless you pass `--reset`.
+
 ---
 
 ## API Reference
@@ -206,17 +234,24 @@ Out-of-range pages return an empty `items` array; invalid params return `422`.
 ```
 
 ### Orders
-| Method | Path           | Description                       |
-| ------ | -------------- | --------------------------------- |
-| POST   | `/orders`      | Create an order (reduces stock)   |
-| GET    | `/orders`      | List orders (paginated)           |
-| GET    | `/orders/{id}` | Get order details                 |
-| DELETE | `/orders/{id}` | Cancel an order (restores stock)  |
+| Method | Path           | Description                                                  |
+| ------ | -------------- | ------------------------------------------------------------ |
+| POST   | `/orders`      | Create an order (defaults to `Pending`, reduces stock)       |
+| GET    | `/orders`      | List orders (paginated, newest first)                        |
+| GET    | `/orders/{id}` | Get order details                                            |
+| PATCH  | `/orders/{id}` | Update status; `Cancelled` keeps the row on record + restocks |
+| DELETE | `/orders/{id}` | Permanently delete an order (restores stock)                 |
 
 ```jsonc
-// POST /orders  — total_amount is computed by the backend
+// POST /orders  — total_amount is computed by the backend.
+// `status` is optional (defaults to "Pending").
 { "customer_id": 1, "items": [ { "product_id": 1, "quantity": 2 } ] }
+
+// PATCH /orders/1  — advance or cancel an order
+{ "status": "Shipped" }
 ```
+
+Order status is one of: `Pending`, `Processing`, `Shipped`, `Delivered`, `Cancelled`.
 
 ### Dashboard
 | Method | Path                  | Description                                     |
@@ -234,62 +269,13 @@ All enforced in the backend (and mirrored in DB constraints where possible):
 - ✅ Product quantity **cannot be negative** → `422` on invalid input + DB `CHECK` constraint.
 - ✅ Orders are **rejected if stock is insufficient** → `409 Conflict`.
 - ✅ Creating an order **automatically reduces stock**; cancelling **restores** it.
+- ✅ Orders carry a **status** (`Pending` by default); cancelling sets `Cancelled`, **keeps the
+  order on record**, and restocks exactly once.
 - ✅ Order `total_amount` is **calculated by the backend** from current product prices.
 - ✅ All input is **validated** (Pydantic) → `422` with field-level messages.
 - ✅ Proper status codes throughout: `201` create, `204` delete, `404` not found, `409` conflict, `422` validation.
 
 ---
-
-## Deployment
-
-### Backend → Render (Docker)
-
-1. Push this repo to GitHub.
-2. On [Render](https://render.com): **New → Blueprint**, point it at the repo. `render.yaml`
-   provisions a free PostgreSQL database and a Docker web service from `backend/`, and
-   **wires `DATABASE_URL` automatically** from the database.
-   *(Or do it manually: **New → Web Service**, runtime **Docker**, root directory `backend`.)*
-3. Set the one remaining environment variable on the backend service:
-   - `CORS_ORIGINS` = your Vercel frontend URL (e.g. `https://your-app.vercel.app`).
-   - `LOW_STOCK_THRESHOLD` = `10` (optional).
-   > No need to touch `DATABASE_URL` — the backend normalizes Render's `postgresql://`
-   > URL to the `postgresql+psycopg://` driver scheme at startup automatically.
-4. Deploy. Your API is at `https://<service>.onrender.com` (docs at `/docs`).
-
-> Render's free tier sleeps after inactivity; the first request after idle may take ~30s.
-
-### Frontend → Vercel
-
-1. On [Vercel](https://vercel.com): **Add New → Project**, import the repo.
-2. Set **Root Directory** to `frontend`. Vercel auto-detects Vite (`vercel.json` is included).
-3. Add an environment variable:
-   - `VITE_API_BASE_URL` = your Render backend URL (e.g. `https://<service>.onrender.com`).
-4. Deploy. Your UI is at `https://<app>.vercel.app`.
-5. **Important:** make sure the backend's `CORS_ORIGINS` includes this exact Vercel URL, then
-   redeploy the backend if you changed it.
-
-### Backend image → Docker Hub
-
-```bash
-cd backend
-docker build -t <your-dockerhub-username>/inventory-backend:latest .
-docker login
-docker push <your-dockerhub-username>/inventory-backend:latest
-```
-
-Image link: `https://hub.docker.com/r/<your-dockerhub-username>/inventory-backend`
-
----
-
-## Submission Checklist
-
-- [ ] GitHub repository link (frontend + backend)
-- [ ] Docker Hub image link for the backend
-- [ ] Live frontend URL (Vercel)
-- [ ] Live backend API URL (Render, e.g. `.../docs`)
-- [ ] `CORS_ORIGINS` on the backend includes the live frontend URL
-- [ ] `VITE_API_BASE_URL` on the frontend points to the live backend URL
-```
 
 > **Security note:** no credentials are hardcoded. All secrets come from environment variables
 > / `.env` files, and `.env` is gitignored. Use strong values in production.
