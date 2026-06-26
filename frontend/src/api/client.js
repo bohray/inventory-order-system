@@ -109,6 +109,8 @@ export const api = {
     request(`${ENDPOINTS.orders}${qs({ page, page_size: pageSize })}`),
   getOrder: (id) => request(ENDPOINTS.order(id)),
   createOrder: (body) => request(ENDPOINTS.orders, { method: "POST", body }),
+  updateOrderStatus: (id, status) =>
+    request(ENDPOINTS.order(id), { method: "PATCH", body: { status } }),
   deleteOrder: (id) => request(ENDPOINTS.order(id), { method: "DELETE" }),
 
   getDashboard: () => request(ENDPOINTS.dashboardSummary),

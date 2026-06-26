@@ -11,6 +11,22 @@ export const DEFAULT_ORDER_LINE = { product_id: "", quantity: "1" };
 export const DEFAULT_PAGE_SIZE = 10;
 export const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
+// Order statuses and their Badge tones (see UI/Badge.jsx).
+export const ORDER_STATUSES = [
+  "Pending",
+  "Processing",
+  "Shipped",
+  "Delivered",
+  "Cancelled",
+];
+export const ORDER_STATUS_TONE = {
+  Pending: "amber",
+  Processing: "blue",
+  Shipped: "indigo",
+  Delivered: "green",
+  Cancelled: "slate",
+};
+
 export const MESSAGES = {
   loading: "Loading…",
   noProducts: "No products yet. Add your first product.",

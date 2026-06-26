@@ -13,6 +13,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+# Allowed values for Order.status. Kept here so both the DB CheckConstraint
+# (below) and the Pydantic schema can stay in sync.
+ORDER_STATUSES = ("Pending", "Processing", "Shipped", "Delivered", "Cancelled")
+_ORDER_STATUS_SQL = ", ".join(f"'{s}'" for s in ORDER_STATUSES)
+
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
@@ -59,6 +64,11 @@ class Customer(Base):
 
 class Order(Base):
     __tablename__ = "orders"
+    __table_args__ = (
+        CheckConstraint(
+            f"status IN ({_ORDER_STATUS_SQL})", name="ck_order_status_valid"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     customer_id: Mapped[int] = mapped_column(
@@ -66,6 +76,9 @@ class Order(Base):
     )
     total_amount: Mapped[float] = mapped_column(
         Numeric(12, 2), nullable=False, default=0
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="Pending", server_default="Pending"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, server_default=func.now()

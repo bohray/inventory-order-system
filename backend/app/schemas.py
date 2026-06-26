@@ -1,9 +1,13 @@
 from datetime import datetime
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 T = TypeVar("T")
+
+# Mirrors models.ORDER_STATUSES. Declared as a Literal so requests are
+# validated against the allowed set automatically.
+OrderStatus = Literal["Pending", "Processing", "Shipped", "Delivered", "Cancelled"]
 
 
 class Page(BaseModel, Generic[T]):
@@ -72,6 +76,14 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     customer_id: int = Field(..., gt=0)
     items: list[OrderItemCreate] = Field(..., min_length=1)
+    # New orders default to "Pending". `created_at` is optional and only used
+    # for seeding a backdated order history; normal clients omit it.
+    status: OrderStatus = "Pending"
+    created_at: datetime | None = None
+
+
+class OrderStatusUpdate(BaseModel):
+    status: OrderStatus
 
 
 class OrderItemOut(BaseModel):
@@ -91,6 +103,7 @@ class OrderOut(BaseModel):
     id: int
     customer_id: int
     total_amount: float
+    status: OrderStatus
     created_at: datetime
     items: list[OrderItemOut]
     customer_name: str | None = None

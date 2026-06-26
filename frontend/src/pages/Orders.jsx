@@ -1,13 +1,14 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { LuPlus, LuEye, LuTrash2 } from "react-icons/lu";
+import { LuPlus, LuEye, LuBan } from "react-icons/lu";
 import { api } from "../api/client.js";
 import { usePaginatedApi } from "../hooks/usePaginatedApi.js";
 import { useApi } from "../hooks/useApi.js";
 import { useConfirm } from "../hooks/useConfirm.jsx";
-import { MESSAGES } from "../constants/app-data.js";
+import { MESSAGES, ORDER_STATUS_TONE } from "../constants/app-data.js";
 import { formatCurrency } from "../utils/format.js";
 import Table from "../components/UI/Table.jsx";
+import Badge from "../components/UI/Badge.jsx";
 import Button from "../components/UI/Button.jsx";
 import Pagination from "../components/UI/Pagination.jsx";
 import CreateOrderModal from "../components/Orders/CreateOrderModal.jsx";
@@ -61,7 +62,7 @@ export default function Orders() {
     });
     if (!ok) return;
     try {
-      await api.deleteOrder(order.id);
+      await api.updateOrderStatus(order.id, "Cancelled");
       toast.success(MESSAGES.orderCancelled);
       reload();
       reloadProducts();
@@ -90,6 +91,13 @@ export default function Orders() {
       className: "font-medium",
     },
     {
+      key: "status",
+      header: "Status",
+      render: (o) => (
+        <Badge tone={ORDER_STATUS_TONE[o.status] || "slate"}>{o.status}</Badge>
+      ),
+    },
+    {
       key: "date",
       header: "Date",
       render: (o) => new Date(o.created_at).toLocaleDateString(),
@@ -104,8 +112,14 @@ export default function Orders() {
           <Button variant="ghost" size="sm" onClick={() => viewDetail(o.id)}>
             <LuEye size={15} /> View
           </Button>
-          <Button variant="danger" size="sm" onClick={() => cancel(o)}>
-            <LuTrash2 size={15} /> Cancel
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => cancel(o)}
+            disabled={o.status === "Cancelled"}
+            title={o.status === "Cancelled" ? "Order already cancelled" : ""}
+          >
+            <LuBan size={15} /> Cancel
           </Button>
         </div>
       ),
@@ -132,7 +146,7 @@ export default function Orders() {
         data={items}
         loading={loading}
         emptyMessage={MESSAGES.noOrders}
-        minWidth="min-w-[640px]"
+        minWidth="min-w-[760px]"
       />
 
       <Pagination

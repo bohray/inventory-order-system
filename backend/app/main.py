@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from app.config import get_settings
@@ -9,9 +10,32 @@ from app.routers import customers, dashboard, orders, products
 
 settings = get_settings()
 
+
+def _ensure_schema() -> None:
+    """Add columns introduced after a table was first created.
+
+    A real product would use Alembic; this keeps the assessment zero-config
+    while still upgrading an existing database (where create_all is a no-op
+    for already-existing tables) when a new column like orders.status lands.
+    """
+    inspector = inspect(engine)
+    if "orders" not in inspector.get_table_names():
+        return
+    columns = {c["name"] for c in inspector.get_columns("orders")}
+    if "status" not in columns:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "ALTER TABLE orders "
+                    "ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Pending'"
+                )
+            )
+
+
 # Create tables on startup. For a real product this would be Alembic
 # migrations; for this assessment create_all keeps setup zero-config.
 Base.metadata.create_all(bind=engine)
+_ensure_schema()
 
 app = FastAPI(
     title="Inventory & Order Management API",

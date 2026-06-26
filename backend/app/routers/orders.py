@@ -61,7 +61,12 @@ def create_order(payload: schemas.OrderCreate, db: Session = Depends(get_db)):
             )
         seen.add(item.product_id)
 
-    order = models.Order(customer_id=customer.id, total_amount=Decimal("0"))
+    order = models.Order(
+        customer_id=customer.id, total_amount=Decimal("0"), status=payload.status
+    )
+    # Optional backdating, used only when seeding a demo order history.
+    if payload.created_at is not None:
+        order.created_at = payload.created_at
     total = Decimal("0")
 
     for line in payload.items:
@@ -120,7 +125,7 @@ def list_orders(
             selectinload(models.Order.items).selectinload(models.OrderItem.product),
             selectinload(models.Order.customer),
         )
-        .order_by(models.Order.id.desc())
+        .order_by(models.Order.created_at.desc(), models.Order.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
         .all()
@@ -137,6 +142,24 @@ def list_orders(
 @router.get("/{order_id}", response_model=schemas.OrderOut)
 def get_order(order_id: int, db: Session = Depends(get_db)):
     return _serialize_order(_load_order_or_404(db, order_id))
+
+
+@router.patch("/{order_id}", response_model=schemas.OrderOut)
+def update_order_status(
+    order_id: int,
+    payload: schemas.OrderStatusUpdate,
+    db: Session = Depends(get_db),
+):
+    """Update an order's status. Cancelling restocks the products it consumed
+    (once), and the order row is kept rather than deleted."""
+    order = _load_order_or_404(db, order_id)
+    if payload.status == "Cancelled" and order.status != "Cancelled":
+        for item in order.items:
+            if item.product:
+                item.product.quantity += item.quantity
+    order.status = payload.status
+    db.commit()
+    return _serialize_order(_load_order_or_404(db, order.id))
 
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
