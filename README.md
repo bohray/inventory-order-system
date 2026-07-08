@@ -20,6 +20,7 @@ A full-stack, containerized application for managing **products, customers, orde
 6. [Run Without Docker](#run-without-docker-dev-mode)
 7. [API Reference](#api-reference)
 8. [Business Rules](#business-rules)
+9. [Deployment](#deployment)
 
 ---
 
@@ -274,6 +275,39 @@ All enforced in the backend (and mirrored in DB constraints where possible):
 - ✅ Order `total_amount` is **calculated by the backend** from current product prices.
 - ✅ All input is **validated** (Pydantic) → `422` with field-level messages.
 - ✅ Proper status codes throughout: `201` create, `204` delete, `404` not found, `409` conflict, `422` validation.
+
+---
+
+## Deployment
+
+The backend runs on **Render** (Docker); the database is an external **Supabase**
+Postgres. No app code changes for this — the same sync SQLAlchemy + psycopg driver
+connects to Supabase, and the raw connection string is normalized to
+`postgresql+psycopg://` at startup (see `app/config.py`).
+
+**Database (Supabase):**
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Open **Project Settings → Database → Connection string** and copy the
+   **Session pooler** URL — host `...pooler.supabase.com`, port `5432`. Do **not**
+   use the **Direct connection** (IPv6-only, won't connect from Render). Append
+   `?sslmode=require`.
+3. In the Render backend service → **Environment**, set `DATABASE_URL` to that
+   string (never commit it), and `CORS_ORIGINS` to your Vercel URL.
+4. Redeploy. `create_all` builds the tables against the empty database on startup.
+5. Seed the live demo over HTTP:
+
+   ```bash
+   python seed_demo.py --reset --base-url https://<backend>.onrender.com
+   ```
+
+**Keeping the demo alive:**
+
+Supabase's free tier **pauses a project after ~7 days of inactivity and does not
+auto-wake**. Keep it warm with a free uptime pinger (e.g. [UptimeRobot](https://uptimerobot.com)
+or [cron-job.org](https://cron-job.org)) hitting a **DB-backed** endpoint such as
+`GET /products` every ~3 days. Don't ping `/health` — it doesn't query the database,
+so it won't count as activity that keeps the project awake.
 
 ---
 
